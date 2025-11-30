@@ -1,0 +1,58 @@
+# Production docker-compose with Traefik reverse proxy and auto-SSL
+#
+# Prerequisites:
+#   - Domain name pointing to your server
+#   - Ports 80 and 443 open
+#
+# Usage:
+#   export SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+#   docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Redirect HTTP to HTTPS
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Let's Encrypt
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?ACME_EMAIL is required}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    restart: unless-stopped
+
+  fastapi-app:
+    container_name: sniffer2pcap
+    build:
+      context: .
+    expose:
+      - "8000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENVIRONMENT: "production"
+      DEBUG: "false"
+      DATABASE_URL: "sqlite:////app/data/database.db"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sniffer.rule=Host(`${DOMAIN:?DOMAIN is required}`)"
+      - "traefik.http.routers.sniffer.entrypoints=websecure"
+      - "traefik.http.routers.sniffer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sniffer.loadbalancer.server.port=8000"
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  letsencrypt:
