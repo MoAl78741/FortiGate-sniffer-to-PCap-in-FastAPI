@@ -1,19 +1,11 @@
 # Build stage for frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:20-slim AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install build tools BEFORE npm install
-# python3 is critical for node-gyp (used by many npm packages)
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    bash
-
 # Copy and install dependencies
 COPY frontend/package*.json ./
-RUN npm install --verbose 2>&1 || npm install --verbose --legacy-peer-deps
+RUN npm install
 
 # Copy source and build
 COPY frontend/ ./
@@ -21,33 +13,24 @@ RUN npm run build
 
 
 # Production stage
-FROM python:3.12-alpine
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install runtime dependencies
-RUN apk add --no-cache \
-    perl \
-    wireshark-common \
-    libffi \
-    openssl
+# Install wget for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy requirements and install Python deps with build tools (virtual group)
+# Copy requirements and install Python deps
 COPY requirements.txt .
-
-RUN apk add --no-cache --virtual .build-deps \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apk del .build-deps
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd --system appgroup && useradd --system --gid appgroup appuser
 
 # Copy application code and built frontend
 COPY fastapi_app/ ./fastapi_app/
