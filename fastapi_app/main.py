@@ -10,7 +10,30 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR.parent / "frontend" / "dist"
 USE_REACT = FRONTEND_DIR.exists() and (FRONTEND_DIR / "index.html").exists()
 
-app = FastAPI(title=settings.PROJECT_NAME)
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="""
+## FortiGate Sniffer to PCAP Converter API
+
+Convert FortiGate network sniffer output files to Wireshark-compatible PCAP format.
+
+### Features
+- **User Authentication**: Secure JWT-based authentication
+- **File Upload**: Upload FortiGate sniffer text files
+- **Conversion**: Convert sniffer output to PCAPNG format
+- **Download**: Download original or converted files
+
+### Authentication
+Most endpoints require a valid JWT token. Obtain one via the `/token` endpoint using your email and password.
+""",
+    version="1.0.0",
+    contact={
+        "name": "API Support",
+    },
+    license_info={
+        "name": "MIT",
+    },
+)
 
 @app.on_event("startup")
 def on_startup():
