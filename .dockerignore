@@ -43,16 +43,8 @@ logs/
 *.db
 database.db
 
-# Frontend source (only dist is needed)
+# Frontend (exclude node_modules, keep source for build stage)
 frontend/node_modules/
-frontend/src/
-frontend/public/
-frontend/index.html
-frontend/vite.config.js
-frontend/package.json
-frontend/package-lock.json
-frontend/eslint.config.js
-frontend/README.md
 
 # Documentation
 *.md
