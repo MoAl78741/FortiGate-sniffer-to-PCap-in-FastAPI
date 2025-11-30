@@ -2,6 +2,8 @@
 
 A web application that converts FortiGate network sniffer output files to Wireshark-compatible PCAPNG format.
 
+![Preview](image1.png)
+
 ## Features
 
 - User authentication (signup/login with JWT)
