@@ -9,7 +9,7 @@ services:
       # REQUIRED: Set a secure secret key (minimum 32 characters)
       # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      ENVIRONMENT: "production"
+      ENVIRONMENT: "development"  # Use "production" only with HTTPS (reverse proxy)
       DEBUG: "false"
       DATABASE_URL: "sqlite:////app/data/database.db"
     volumes:
