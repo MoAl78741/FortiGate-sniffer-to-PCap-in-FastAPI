@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+aiofiles
+pydantic-settings
+email-validator
+jinja2
