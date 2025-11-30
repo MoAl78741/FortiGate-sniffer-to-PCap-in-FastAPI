@@ -1,6 +1,6 @@
 services:
   fastapi-app:
-    container_name: sniffer2pcap
+    container_name: sniffer2pcap2
     build:
       context: .
     ports:
