@@ -10,9 +10,19 @@ A web application that converts FortiGate network sniffer output files to Wiresh
 - Download original or converted files
 - Manage conversion history
 
+## Security Features
+
+- Strong password requirements (12+ chars, mixed case, numbers)
+- Rate limiting on authentication endpoints
+- Account lockout after failed login attempts
+- Secure cookie configuration
+- Security headers (CSP, X-Frame-Options, HSTS)
+- File type validation and filename sanitization
+- Audit logging for security events
+
 ## Tech Stack
 
-- **Backend:** FastAPI, SQLModel, SQLite, JWT authentication
+- **Backend:** FastAPI, SQLModel, SQLite, JWT authentication, slowapi
 - **Frontend:** React 19, Vite, React Router
 - **Conversion:** Custom sniftran library (parser → assembler → PCAPNG writer)
 
@@ -22,8 +32,148 @@ A web application that converts FortiGate network sniffer output files to Wiresh
 
 - Python 3.10+
 - Node.js 18+
+- Or Docker
 
-### Installation
+### Docker (Recommended)
+
+The Docker setup uses a multi-stage build that:
+- Builds the React frontend with Node.js
+- Creates a lightweight Python Alpine image with the compiled frontend
+- Runs as a non-root user for security
+- Persists data in a Docker volume
+
+#### Quick Start with Docker
+
+```bash
+# Generate a secure secret key
+SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+
+# Run with docker-compose
+SECRET_KEY=$SECRET_KEY docker-compose up -d
+
+# Access at http://localhost:8000
+```
+
+#### Using an Environment File
+
+Create a `.env` file in the project root:
+
+```bash
+# .env
+SECRET_KEY=your-secure-secret-key-at-least-32-characters
+ENVIRONMENT=production
+DEBUG=false
+```
+
+Then run:
+
+```bash
+docker-compose up -d
+```
+
+#### Docker Commands Reference
+
+```bash
+# Build and start in detached mode
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop the container
+docker-compose down
+
+# Stop and remove volumes (WARNING: deletes database)
+docker-compose down -v
+
+# Rebuild without cache
+docker-compose build --no-cache
+
+# Check container health
+docker ps
+docker inspect sniffer2pcap --format='{{.State.Health.Status}}'
+```
+
+#### Docker Configuration Details
+
+The container exposes port 8000 and includes:
+- **Health check:** Automatic container health monitoring
+- **Data persistence:** SQLite database stored in a named volume (`app-data`)
+- **Auto-restart:** Container restarts unless explicitly stopped
+- **Security:** Runs as non-root user with minimal Alpine base image
+
+#### Deploying with Portainer
+
+[Portainer](https://www.portainer.io/) provides a web-based UI for managing Docker containers. Here's how to deploy this application using Portainer:
+
+**Option 1: Using Stacks (Recommended)**
+
+1. In Portainer, navigate to **Stacks** → **Add stack**
+2. Name your stack (e.g., `sniffer2pcap`)
+3. Choose **Web editor** and paste the docker-compose.yml content:
+
+```yaml
+services:
+  fastapi-app:
+    container_name: sniffer2pcap
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: "production"
+      DEBUG: "false"
+      DATABASE_URL: "sqlite:////app/data/database.db"
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:
+```
+
+4. Under **Environment variables**, add:
+   - `SECRET_KEY`: Your secure secret key (min 32 characters)
+5. Click **Deploy the stack**
+
+**Option 2: Using a Pre-built Image**
+
+If you've pushed the image to a registry:
+
+1. Go to **Containers** → **Add container**
+2. Configure:
+   - **Name:** `sniffer2pcap`
+   - **Image:** `your-registry/sniffer2pcap:latest`
+   - **Port mapping:** Host `8000` → Container `8000`
+   - **Volumes:** Create a volume mapped to `/app/data`
+   - **Env variables:**
+     - `SECRET_KEY=your-secure-key-here`
+     - `ENVIRONMENT=production`
+     - `DEBUG=false`
+     - `DATABASE_URL=sqlite:////app/data/database.db`
+   - **Restart policy:** Unless stopped
+3. Click **Deploy the container**
+
+**Option 3: Using Git Repository**
+
+1. Go to **Stacks** → **Add stack**
+2. Select **Repository**
+3. Enter your Git repository URL
+4. Set **Compose path** to `docker-compose.yml`
+5. Add environment variables for `SECRET_KEY`
+6. Enable **Automatic updates** if desired
+7. Click **Deploy the stack**
+
+**Monitoring in Portainer**
+
+Once deployed, you can:
+- View container logs under **Containers** → **sniffer2pcap** → **Logs**
+- Monitor resource usage in the **Stats** tab
+- Access the container console via **Console**
+- Check health status in the container details
+
+### Manual Installation
 
 ```bash
 # Clone repository
@@ -35,6 +185,10 @@ python -m venv .venv
 .venv\Scripts\activate  # Windows
 # source .venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and set a secure SECRET_KEY (minimum 32 characters)
 
 # Frontend setup
 cd frontend
@@ -73,6 +227,181 @@ Once running, visit:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
+> **Note:** API documentation endpoints are disabled in production mode for security.
+
+## API Examples
+
+### Authentication
+
+#### Create Account
+
+```bash
+curl -X POST http://localhost:8000/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123!",
+    "first_name": "John"
+  }'
+```
+
+Response:
+```json
+{
+  "email": "user@example.com",
+  "first_name": "John",
+  "id": 1
+}
+```
+
+#### Login (Get Access Token)
+
+```bash
+curl -X POST http://localhost:8000/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=user@example.com&password=SecurePass123!"
+```
+
+Response:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+### File Operations
+
+All file operations require authentication. Include the token in the Authorization header:
+
+```bash
+TOKEN="your-access-token-here"
+```
+
+#### Upload Sniffer File
+
+```bash
+curl -X POST http://localhost:8000/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "files=@sniffer_output.txt"
+```
+
+Response:
+```json
+[
+  {
+    "id": 1,
+    "content": "sniffer_output.txt",
+    "date_created": "2024-01-15T10:30:00",
+    "user_id": 1,
+    "has_converted_data": false
+  }
+]
+```
+
+#### List All Conversions
+
+```bash
+curl -X GET http://localhost:8000/conversions \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+```json
+[
+  {
+    "id": 1,
+    "content": "sniffer_output.txt",
+    "date_created": "2024-01-15T10:30:00",
+    "user_id": 1,
+    "has_converted_data": true
+  }
+]
+```
+
+#### Convert File to PCAP
+
+```bash
+curl -X POST http://localhost:8000/convert/1 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+```json
+{
+  "message": "Converted 150 packets to PCAP successfully"
+}
+```
+
+#### Download Converted PCAP
+
+```bash
+curl -X GET http://localhost:8000/conversions/1/download/pcap \
+  -H "Authorization: Bearer $TOKEN" \
+  -o output.pcapng
+```
+
+#### Download Original File
+
+```bash
+curl -X GET http://localhost:8000/conversions/1/download/original \
+  -H "Authorization: Bearer $TOKEN" \
+  -o original.txt
+```
+
+#### Rename Conversion
+
+```bash
+curl -X PUT http://localhost:8000/conversions/1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"new_name": "renamed_file.txt"}'
+```
+
+Response:
+```json
+{
+  "message": "Renamed successfully"
+}
+```
+
+#### Delete Conversion
+
+```bash
+curl -X DELETE http://localhost:8000/conversions/1 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
+```json
+{
+  "message": "Deleted successfully"
+}
+```
+
+### Rate Limits
+
+| Endpoint | Limit |
+|----------|-------|
+| `POST /token` | 5 requests/minute |
+| `POST /signup` | 3 requests/hour |
+
+### Error Responses
+
+Authentication errors return 401:
+```json
+{
+  "detail": "Incorrect username or password"
+}
+```
+
+Rate limit exceeded returns 429:
+```json
+{
+  "detail": "Account temporarily locked due to too many failed attempts. Try again later."
+}
+```
+
 ## Usage
 
 1. Create an account at `/signup`
@@ -85,10 +414,10 @@ Once running, visit:
 
 ```
 ├── fastapi_app/
-│   ├── core/           # Config, database, security
+│   ├── core/           # Config, database, security, logging
 │   ├── models/         # SQLModel ORM models
 │   ├── schemas/        # Pydantic validation schemas
-│   ├── routers/        # API endpoints
+│   ├── routers/        # API endpoints (with rate limiting)
 │   ├── services/       # Conversion business logic
 │   └── sniftran/       # Sniffer to PCAP conversion library
 ├── frontend/
@@ -96,8 +425,20 @@ Once running, visit:
 │       ├── context/    # React auth context
 │       ├── pages/      # Login, Signup, Dashboard
 │       └── components/ # Reusable UI components
+├── Dockerfile          # Multi-stage Docker build
+├── docker-compose.yml  # Production Docker config
+├── .env.example        # Environment configuration template
 └── requirements.txt
 ```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SECRET_KEY` | JWT signing key (min 32 chars) | Required |
+| `ENVIRONMENT` | "development" or "production" | development |
+| `DEBUG` | Enable debug mode | false |
+| `DATABASE_URL` | Database connection string | sqlite:///./database.db |
 
 ## License
 

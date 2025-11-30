@@ -1,9 +1,11 @@
 import os
 from typing import List
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, select
 from ..core.database import get_session
+from ..core.logging import log_conversion_error
 from ..models.user import User
 from ..models.conversion import Conversion
 from ..schemas.conversion import ConversionRead, ConversionRename
@@ -11,6 +13,57 @@ from ..services.converter import Convert2Pcap
 from ..core.security import settings
 from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
+
+
+# Windows reserved filenames that are not allowed
+WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+                    "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
+                    "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
+
+# Allowed file extensions for sniffer files
+ALLOWED_EXTENSIONS = {".txt", ".log", ".sniffer", ".cap", ".dump"}
+
+MAX_FILENAME_LENGTH = 255
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Comprehensive filename sanitization.
+    Returns sanitized filename or raises ValueError if invalid.
+    """
+    if not filename:
+        raise ValueError("Filename cannot be empty")
+
+    # Get just the filename, remove any path components
+    filename = os.path.basename(filename)
+
+    # Remove null bytes
+    filename = filename.replace("\x00", "")
+
+    # Keep only safe characters
+    sanitized = "".join(c for c in filename if c.isalnum() or c in "._-")
+
+    # Check length
+    if not sanitized or len(sanitized) > MAX_FILENAME_LENGTH:
+        raise ValueError("Invalid filename length")
+
+    # Check for reserved names (Windows)
+    name_without_ext = sanitized.rsplit(".", 1)[0].upper()
+    if name_without_ext in WINDOWS_RESERVED:
+        raise ValueError("Reserved filename not allowed")
+
+    # Prevent hidden files and directory traversal
+    if sanitized.startswith(".") or sanitized in {".", ".."}:
+        sanitized = "file_" + sanitized
+
+    return sanitized
+
+
+def get_safe_content_disposition(filename: str) -> str:
+    """Generate RFC 5987 compliant Content-Disposition header value."""
+    # URL encode the filename for RFC 5987 compatibility
+    encoded_filename = quote(filename, safe="")
+    return f"attachment; filename*=UTF-8''{encoded_filename}"
 
 router = APIRouter()
 
@@ -59,9 +112,30 @@ async def upload_files(
     """
     results = []
     for file in files:
+        # Validate file extension
+        ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
+        if ext and ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
+            )
+
         content = await file.read()
-        # Sanitize filename
-        filename = "".join(x for x in file.filename if x.isalnum() or x in "._-")
+
+        # Validate content is text-based (sniffer files are text)
+        try:
+            content.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file format. Sniffer files must be text-based."
+            )
+
+        # Sanitize filename with comprehensive validation
+        try:
+            filename = sanitize_filename(file.filename)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         conversion = Conversion(content=filename, data=content, user_id=current_user.id)
         session.add(conversion)
@@ -151,7 +225,13 @@ async def convert_file(
 
         return {"message": f"Converted {packets} packets to PCAP successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log the error internally with full details
+        log_conversion_error(id, current_user.id, e)
+        # Return generic error message to client
+        raise HTTPException(
+            status_code=500,
+            detail="Conversion failed. Please check your file format and try again."
+        )
 
 @router.get(
     "/conversions/{id}/download/original",
@@ -180,7 +260,7 @@ async def download_original(
     return Response(
         content=conversion.data,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={conversion.content}"}
+        headers={"Content-Disposition": get_safe_content_disposition(conversion.content)}
     )
 
 @router.get(
@@ -216,7 +296,7 @@ async def download_pcap(
     return Response(
         content=conversion.data_converted,
         media_type="application/x-pcapng",
-        headers={"Content-Disposition": f"attachment; filename={conversion.content}.pcapng"}
+        headers={"Content-Disposition": get_safe_content_disposition(f"{conversion.content}.pcapng")}
     )
 
 @router.delete(
@@ -275,8 +355,12 @@ async def rename_conversion(
     if not conversion or conversion.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Conversion task not found")
 
-    # Sanitize filename
-    new_name = "".join(x for x in rename.new_name if x.isalnum() or x in "._-")
+    # Sanitize filename with comprehensive validation
+    try:
+        new_name = sanitize_filename(rename.new_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     conversion.content = new_name
     session.add(conversion)
     session.commit()

@@ -209,3 +209,4 @@ fastapi_app/nul
 database.db
 nul
 CLAUDE.md
+.claude/settings.local.json

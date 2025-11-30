@@ -1,0 +1,21 @@
+services:
+  fastapi-app:
+    container_name: sniffer2pcap
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      # REQUIRED: Set a secure secret key (minimum 32 characters)
+      # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENVIRONMENT: "production"
+      DEBUG: "false"
+      DATABASE_URL: "sqlite:////app/data/database.db"
+    volumes:
+      # Persist database outside container
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:

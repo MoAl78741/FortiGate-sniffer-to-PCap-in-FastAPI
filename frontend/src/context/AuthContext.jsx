@@ -27,35 +27,55 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, password) => {
-    const response = await fetch('/login', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ email, password }),
-    });
+    try {
+      const response = await fetch('/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ email, password }),
+      });
 
-    if (response.redirected || response.ok) {
-      await checkAuth();
-      return { success: true };
+      if (response.ok) {
+        await checkAuth();
+        return { success: true };
+      }
+
+      // Try to get error detail from JSON response
+      try {
+        const data = await response.json();
+        return { success: false, error: data.detail || 'Invalid email or password' };
+      } catch {
+        return { success: false, error: 'Invalid email or password' };
+      }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
     }
-
-    return { success: false, error: 'Invalid email or password' };
   };
 
   const signup = async (email, firstName, password1, password2) => {
-    const response = await fetch('/sign-up', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ email, firstName, password1, password2 }),
-    });
+    try {
+      const response = await fetch('/sign-up', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ email, firstName, password1, password2 }),
+      });
 
-    if (response.redirected || response.ok) {
-      await checkAuth();
-      return { success: true };
+      if (response.ok) {
+        await checkAuth();
+        return { success: true };
+      }
+
+      // Try to get error detail from JSON response
+      try {
+        const data = await response.json();
+        return { success: false, error: data.detail || 'Signup failed' };
+      } catch {
+        return { success: false, error: 'Signup failed. Email may already be registered.' };
+      }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
     }
-
-    return { success: false, error: 'Signup failed. Email may already be registered.' };
   };
 
   const logout = async () => {

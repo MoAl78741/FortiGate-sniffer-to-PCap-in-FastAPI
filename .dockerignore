@@ -1,0 +1,63 @@
+# Version Control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+env/
+.env
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+docker-compose*.yml
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs and temp files
+*.log
+*.tmp
+logs/
+
+# Database (will be created in container)
+*.db
+database.db
+
+# Frontend source (only dist is needed)
+frontend/node_modules/
+frontend/src/
+frontend/public/
+frontend/index.html
+frontend/vite.config.js
+frontend/package.json
+frontend/package-lock.json
+frontend/eslint.config.js
+frontend/README.md
+
+# Documentation
+*.md
+!README.md
+
+# OS files
+.DS_Store
+Thumbs.db

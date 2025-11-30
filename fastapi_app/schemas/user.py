@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserBase(BaseModel):
@@ -14,10 +14,24 @@ class UserCreate(UserBase):
 
     password: str = Field(
         ...,
-        min_length=1,
-        description="User's password",
-        examples=["securepassword123"],
+        min_length=12,
+        description="Password must be at least 12 characters with uppercase, lowercase, and numbers",
+        examples=["SecurePass123!"],
     )
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """Validate password meets security requirements."""
+        if len(v) < 12:
+            raise ValueError("Password must be at least 12 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one number")
+        return v
 
 
 class UserRead(UserBase):
