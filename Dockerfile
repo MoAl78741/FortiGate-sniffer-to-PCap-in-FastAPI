@@ -1,36 +1,46 @@
-# Build stage for frontend
-FROM node:20-slim AS frontend-builder
+# Build stage for frontend - use FULL node image, not alpine
+FROM node:20 AS frontend-builder
 
 WORKDIR /app/frontend
 
+# Set memory limit for Node to avoid OOM kills
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
 # Copy and install dependencies
 COPY frontend/package*.json ./
-RUN npm install
+
+# Use npm ci (faster, respects lock file exactly)
+RUN npm ci --no-audit --no-fund
 
 # Copy source and build
 COPY frontend/ ./
 RUN npm run build
 
 
-# Production stage
-FROM python:3.12-slim
+# Production stage - alpine for smaller final image
+FROM python:3.12-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Install wget for health checks
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache wget
 
 WORKDIR /app
 
 # Copy requirements and install Python deps
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
 # Create non-root user
-RUN groupadd --system appgroup && useradd --system --gid appgroup appuser
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Copy application code and built frontend
 COPY fastapi_app/ ./fastapi_app/
