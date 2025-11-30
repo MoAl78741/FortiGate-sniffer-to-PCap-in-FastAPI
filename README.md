@@ -108,18 +108,42 @@ The container exposes port 8000 and includes:
 
 [Portainer](https://www.portainer.io/) provides a web-based UI for managing Docker containers. Here's how to deploy this application using Portainer:
 
-**Option 1: Using Stacks (Recommended)**
+**Option 1: Using Git Repository (Recommended)**
 
-1. In Portainer, navigate to **Stacks** → **Add stack**
+> **Note:** The Stack "Web editor" method won't work because Portainer needs access to the Dockerfile for building. Use the Git Repository method instead.
+
+1. Go to **Stacks** → **Add stack**
 2. Name your stack (e.g., `sniffer2pcap`)
-3. Choose **Web editor** and paste the docker-compose.yml content:
+3. Select **Repository**
+4. Configure:
+   - **Repository URL:** `https://github.com/MoAl78741/FortiGate-sniffer-to-PCap-in-FastAPI`
+   - **Repository reference:** `refs/heads/main`
+   - **Compose path:** `docker-compose.yml`
+5. Under **Environment variables**, add:
+   - `SECRET_KEY`: Your secure secret key (min 32 characters)
+6. Optionally enable **Automatic updates** to pull changes automatically
+7. Click **Deploy the stack**
+
+**Option 2: Using a Pre-built Image**
+
+If you've built and pushed the image to a registry:
+
+```bash
+# Build and push locally first
+docker build -t yourusername/sniffer2pcap:latest .
+docker push yourusername/sniffer2pcap:latest
+```
+
+Then in Portainer:
+
+1. Go to **Stacks** → **Add stack**
+2. Choose **Web editor** and paste:
 
 ```yaml
 services:
   fastapi-app:
     container_name: sniffer2pcap
-    build:
-      context: .
+    image: yourusername/sniffer2pcap:latest
     ports:
       - "8000:8000"
     environment:
@@ -135,37 +159,8 @@ volumes:
   app-data:
 ```
 
-4. Under **Environment variables**, add:
-   - `SECRET_KEY`: Your secure secret key (min 32 characters)
-5. Click **Deploy the stack**
-
-**Option 2: Using a Pre-built Image**
-
-If you've pushed the image to a registry:
-
-1. Go to **Containers** → **Add container**
-2. Configure:
-   - **Name:** `sniffer2pcap`
-   - **Image:** `your-registry/sniffer2pcap:latest`
-   - **Port mapping:** Host `8000` → Container `8000`
-   - **Volumes:** Create a volume mapped to `/app/data`
-   - **Env variables:**
-     - `SECRET_KEY=your-secure-key-here`
-     - `ENVIRONMENT=production`
-     - `DEBUG=false`
-     - `DATABASE_URL=sqlite:////app/data/database.db`
-   - **Restart policy:** Unless stopped
-3. Click **Deploy the container**
-
-**Option 3: Using Git Repository**
-
-1. Go to **Stacks** → **Add stack**
-2. Select **Repository**
-3. Enter your Git repository URL
-4. Set **Compose path** to `docker-compose.yml`
-5. Add environment variables for `SECRET_KEY`
-6. Enable **Automatic updates** if desired
-7. Click **Deploy the stack**
+3. Add `SECRET_KEY` environment variable
+4. Click **Deploy the stack**
 
 **Monitoring in Portainer**
 
