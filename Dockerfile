@@ -3,6 +3,13 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
+# Install build tools needed for node-gyp / native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    bash
+
 # Copy frontend source
 COPY frontend/package*.json ./
 RUN npm install --verbose
