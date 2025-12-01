@@ -23,8 +23,8 @@ FROM python:3.12-alpine
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install wget for health checks
-RUN apk add --no-cache wget
+# Install wget for health checks and sqlcipher for database encryption
+RUN apk add --no-cache wget sqlcipher-dev
 
 WORKDIR /app
 

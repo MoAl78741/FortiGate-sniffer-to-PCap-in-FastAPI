@@ -3,6 +3,7 @@ import secrets
 import warnings
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -11,6 +12,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./database.db")
+    DATABASE_KEY: Optional[str] = os.getenv("DATABASE_KEY", None)
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 

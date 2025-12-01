@@ -63,8 +63,6 @@ Create a `.env` file in the project root:
 ```bash
 # .env
 SECRET_KEY=your-secure-secret-key-at-least-32-characters
-ENVIRONMENT=production
-DEBUG=false
 ```
 
 Then run:
@@ -72,6 +70,8 @@ Then run:
 ```bash
 docker-compose up -d
 ```
+
+> **Note:** The default `docker-compose.yml` uses `ENVIRONMENT=development` which allows HTTP access. For production with HTTPS, see [Production Deployment with SSL](#production-deployment-with-ssl).
 
 #### Docker Commands Reference
 
@@ -169,6 +169,41 @@ Once deployed, you can:
 - Monitor resource usage in the **Stats** tab
 - Access the container console via **Console**
 - Check health status in the container details
+
+#### Production Deployment with SSL
+
+For production with HTTPS, use `docker-compose.prod.yml` which includes Traefik as a reverse proxy with automatic Let's Encrypt SSL certificates.
+
+**Prerequisites:**
+- A domain name pointing to your server
+- Ports 80 and 443 open
+
+**Setup:**
+
+1. Create a `.env` file:
+
+```bash
+SECRET_KEY=your-secure-secret-key-at-least-32-characters
+DOMAIN=sniffer.yourdomain.com
+ACME_EMAIL=your@email.com
+```
+
+2. Deploy:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**What's included:**
+- Traefik reverse proxy with automatic HTTPS
+- HTTP to HTTPS redirect
+- Let's Encrypt certificate auto-renewal
+- Secure cookies (`ENVIRONMENT=production`)
+- App not directly exposed (only through Traefik)
+
+**For Portainer:** Use the Git Repository method with:
+- **Compose path:** `docker-compose.prod.yml`
+- **Environment variables:** `SECRET_KEY`, `DOMAIN`, `ACME_EMAIL`
 
 ### Manual Installation
 
@@ -422,9 +457,10 @@ Rate limit exceeded returns 429:
 │       ├── context/    # React auth context
 │       ├── pages/      # Login, Signup, Dashboard
 │       └── components/ # Reusable UI components
-├── Dockerfile          # Multi-stage Docker build
-├── docker-compose.yml  # Production Docker config
-├── .env.example        # Environment configuration template
+├── Dockerfile              # Multi-stage Docker build
+├── docker-compose.yml      # Development Docker config (HTTP)
+├── docker-compose.prod.yml # Production config with Traefik SSL
+├── .env.example            # Environment configuration template
 └── requirements.txt
 ```
 
@@ -433,9 +469,59 @@ Rate limit exceeded returns 429:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SECRET_KEY` | JWT signing key (min 32 chars) | Required |
-| `ENVIRONMENT` | "development" or "production" | development |
+| `DATABASE_KEY` | SQLCipher encryption key (32+ chars) | Optional |
+| `ENVIRONMENT` | "development" (HTTP) or "production" (HTTPS only) | development |
 | `DEBUG` | Enable debug mode | false |
 | `DATABASE_URL` | Database connection string | sqlite:///./database.db |
+| `DOMAIN` | Domain for SSL (prod only) | Required for prod |
+| `ACME_EMAIL` | Email for Let's Encrypt (prod only) | Required for prod |
+
+## Data-at-Rest Encryption
+
+This application supports SQLCipher for encrypting the SQLite database at rest using AES-256 encryption.
+
+### Enabling Database Encryption
+
+1. Generate a secure encryption key:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+2. Add the key to your `.env` file or environment:
+
+```bash
+DATABASE_KEY=your-generated-key-here
+```
+
+3. Deploy or restart the application. The database will be created encrypted.
+
+### Important Notes
+
+- **Key Security:** Store the `DATABASE_KEY` securely. If lost, the database is unrecoverable.
+- **New Deployments:** Encryption works automatically for new databases.
+- **Existing Databases:** Unencrypted databases cannot be opened with SQLCipher. You must export data and reimport, or start fresh.
+- **Optional:** If `DATABASE_KEY` is not set, the database remains unencrypted (standard SQLite).
+
+### Host-Level Encryption (Optional)
+
+For additional security, you can encrypt the Docker volume at the host level:
+
+**Linux (LUKS):**
+```bash
+# Create encrypted partition
+cryptsetup luksFormat /dev/sdX
+cryptsetup open /dev/sdX encrypted_volume
+mkfs.ext4 /dev/mapper/encrypted_volume
+
+# Mount and use for Docker volumes
+mount /dev/mapper/encrypted_volume /mnt/encrypted
+```
+
+**ESXi/vSphere:**
+- Enable VM encryption in vCenter
+- Uses vCenter key management
+- Transparent to guest OS
 
 ## License
 

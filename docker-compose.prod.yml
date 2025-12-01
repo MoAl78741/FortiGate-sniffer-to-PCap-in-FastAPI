@@ -40,6 +40,7 @@ services:
       - "8000"
     environment:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      DATABASE_KEY: ${DATABASE_KEY:-}
       ENVIRONMENT: "production"
       DEBUG: "false"
       DATABASE_URL: "sqlite:////app/data/database.db"
