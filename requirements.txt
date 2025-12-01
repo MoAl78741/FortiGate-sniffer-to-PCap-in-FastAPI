@@ -11,3 +11,7 @@ email-validator
 jinja2
 slowapi
 python-dotenv
+
+# Testing
+pytest
+httpx
